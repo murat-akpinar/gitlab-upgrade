@@ -6,9 +6,9 @@ Bu script, **Ubuntu 24.04** üzerinde kurulu GitLab CE (Community Edition) sür�
 
 | Dağıtım       | Test Durumu |
 |---------------|-------------|
-| Ubuntu 24.04  | ✅ Test Edildi |
-| Rocky Linux   | ⛔ Henüz Test Edilmedi |
-| Debian        | ✅ Test Edildi |
+| Ubuntu 24     | ✅ Test Edildi |
+| Rocky 9       | ✅ Test Edildi |
+| Debian 11     | ✅ Test Edildi |
 
 
 
