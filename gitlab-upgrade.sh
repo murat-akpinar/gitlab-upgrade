@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# 🧭 Zorunlu upgrade yolları
+# 🌝 Zorunlu upgrade yolları
 UPGRADE_PATHS=(
   "15.0.5-ce.0"
   "15.1.6-ce.0"
@@ -28,15 +28,18 @@ CURRENT_VERSION=$(gitlab-rake gitlab:env:info 2>/dev/null | awk '/^GitLab inform
 [[ "$CURRENT_VERSION" != *-ce.0 ]] && CURRENT_VERSION="${CURRENT_VERSION}-ce.0"
 echo "✅ Mevcut versiyon: $CURRENT_VERSION"
 
-# ➡️ Sonraki sürümü belirle
+# ➔ Sonraki sürümü belirle (CURRENT_VERSION listede olmasa bile bir sonrakini bul)
 NEXT_VERSION=""
-found_current=false
 for version in "${UPGRADE_PATHS[@]}"; do
-  if $found_current; then
+  if dpkg --compare-versions "$version" gt "$CURRENT_VERSION"; then
     NEXT_VERSION="$version"
     break
   fi
-  [[ "$version" == "$CURRENT_VERSION" ]] && found_current=true
+  # RHEL tabanlı sistemler için rpm alternatifi (fallback olarak)
+  if command -v rpm &>/dev/null; then
+    rpmdev-vercmp "$version" "$CURRENT_VERSION" &>/dev/null || continue
+  fi
+
 done
 
 if [[ -z "$NEXT_VERSION" ]]; then
@@ -51,8 +54,8 @@ BACKUP_DIR="/opt/gitlab_backup_${CURRENT_VERSION}"
 echo "📂 Backup dizini oluşturuluyor: $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR" || { echo "❌ Backup dizini oluşturulamadı."; exit 1; }
 
-# 💾 GitLab veritabanı yedeği alınıyor
-echo "💾 GitLab yedeği alınıyor..."
+# 📀 GitLab veritabanı yedeği alınıyor
+echo "📀 GitLab yedeği alınıyor..."
 gitlab-backup create || { echo "❌ Backup alınamadı."; exit 1; }
 
 # 📦 .tar dosyasını bul
@@ -68,7 +71,7 @@ if [[ $(stat -c%s "$BACKUP_FILE") -lt 102400 ]]; then
   exit 1
 fi
 
-# 🗂️ .tar dosyasını yedek dizinine kopyala
+# 🗂 .tar dosyasını yedek dizinine kopyala
 cp "$BACKUP_FILE" "$BACKUP_DIR/" || { echo "❌ .tar dosyası yedek dizinine kopyalanamadı."; exit 1; }
 
 # 🔐 SHA256 karşılaştırması
@@ -94,7 +97,7 @@ gitlab-rake gitlab:check || { echo "❌ Pre-upgrade kontrolü başarısız."; ex
 gitlab-rake gitlab:doctor:secrets || { echo "❌ Secrets kontrolü başarısız."; exit 1; }
 
 # 📦 Güncelleme
-apt update
+apt update || true
 apt install -y gitlab-ce="$NEXT_VERSION" || { echo "❌ $NEXT_VERSION kurulamadı."; exit 1; }
 
 # ⚙️ Reconfigure ve upgrade işlemleri
@@ -114,4 +117,5 @@ echo "🛠 Lütfen aşağıdaki testleri manuel yapın:"
 echo "- 🔐 Web UI kullanıcı girişi"
 echo "- 📁 Proje ve issue erişimi"
 echo "- 🔄 Git clone/push testi"
+echo "- 🚀 CI/CD job çalıştırma (varsa runner testleri)"
 
