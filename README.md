@@ -36,15 +36,10 @@ GitLab, belirli sürümler arasında **doğrudan yükseltmeye izin vermez**. Bu 
 
 ```bash
 git clone https://github.com/murat-akpinar/gitlab-upgrade.git
+cd gitlab-upgrade
 ```
 
-### 2. Yürütülebilir hale getirin
-
-```bash
-chmod +x gitlab-upgrade.sh
-```
-
-### 3. Script'i çalıştırın (root yetkisiyle)
+### 2. Script'i çalıştırın (root yetkisiyle)
 
 ```bash
 sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
