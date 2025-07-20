@@ -28,18 +28,22 @@ CURRENT_VERSION=$(gitlab-rake gitlab:env:info 2>/dev/null | awk '/^GitLab inform
 [[ "$CURRENT_VERSION" != *-ce.0 ]] && CURRENT_VERSION="${CURRENT_VERSION}-ce.0"
 echo "✅ Mevcut versiyon: $CURRENT_VERSION"
 
-# ➔ Sonraki sürümü belirle (CURRENT_VERSION listede olmasa bile bir sonrakini bul)
+# ➔ Sonraki sürümü belirle
 NEXT_VERSION=""
 for version in "${UPGRADE_PATHS[@]}"; do
-  if dpkg --compare-versions "$version" gt "$CURRENT_VERSION"; then
-    NEXT_VERSION="$version"
-    break
+  if command -v dpkg &>/dev/null; then
+    # Debian/Ubuntu sistemlerde
+    if dpkg --compare-versions "$version" gt "$CURRENT_VERSION"; then
+      NEXT_VERSION="$version"
+      break
+    fi
+  elif command -v rpmdev-vercmp &>/dev/null; then
+    # RHEL/Rocky sistemlerde
+    if rpmdev-vercmp "$version" "$CURRENT_VERSION" | grep -q ">"; then
+      NEXT_VERSION="$version"
+      break
+    fi
   fi
-  # RHEL tabanlı sistemler için rpm alternatifi (fallback olarak)
-  if command -v rpm &>/dev/null; then
-    rpmdev-vercmp "$version" "$CURRENT_VERSION" &>/dev/null || continue
-  fi
-
 done
 
 if [[ -z "$NEXT_VERSION" ]]; then
@@ -96,9 +100,21 @@ cp /etc/gitlab/gitlab-secrets.json "$BACKUP_DIR/" || { echo "❌ gitlab-secrets.
 gitlab-rake gitlab:check || { echo "❌ Pre-upgrade kontrolü başarısız."; exit 1; }
 gitlab-rake gitlab:doctor:secrets || { echo "❌ Secrets kontrolü başarısız."; exit 1; }
 
-# 📦 Güncelleme
-apt update || true
-apt install -y gitlab-ce="$NEXT_VERSION" || { echo "❌ $NEXT_VERSION kurulamadı."; exit 1; }
+# 📦 Güncelleme komutu (dağıtım tipine göre)
+if command -v apt &>/dev/null; then
+  apt update || true
+  apt install -y gitlab-ce="$NEXT_VERSION" || { echo "❌ $NEXT_VERSION kurulamadı (apt)."; exit 1; }
+elif command -v dnf &>/dev/null; then
+  dnf clean all
+  # Önce .el9 uzantısını dener, olmazsa düz sürümle dener
+  dnf install -y gitlab-ce-"$NEXT_VERSION".el9 || dnf install -y gitlab-ce-"$NEXT_VERSION" || {
+    echo "❌ $NEXT_VERSION kurulamadı (dnf)."
+    exit 1
+  }
+else
+  echo "❌ Desteklenmeyen paket yöneticisi!"
+  exit 1
+fi
 
 # ⚙️ Reconfigure ve upgrade işlemleri
 gitlab-ctl reconfigure || { echo "❌ Reconfigure başarısız."; exit 1; }
@@ -109,13 +125,13 @@ gitlab-ctl restart || { echo "❌ Restart başarısız."; exit 1; }
 gitlab-rake gitlab:check || { echo "❌ Post-upgrade kontrol başarısız."; exit 1; }
 gitlab-rake gitlab:doctor:secrets || { echo "❌ Post-upgrade secrets kontrol başarısız."; exit 1; }
 
-# 🎉 Sonuç
-echo "🎉 Yükseltme tamamlandı: $CURRENT_VERSION → $NEXT_VERSION"
-echo "📁 Yedek dizini: $BACKUP_DIR"
 echo ""
 echo "🛠 Lütfen aşağıdaki testleri manuel yapın:"
 echo "- 🔐 Web UI kullanıcı girişi"
 echo "- 📁 Proje ve issue erişimi"
 echo "- 🔄 Git clone/push testi"
-echo "- 🚀 CI/CD job çalıştırma (varsa runner testleri)"
+echo ""
+echo "🚀 Sonuç"
+echo "🎉 Yükseltme tamamlandı: $CURRENT_VERSION → $NEXT_VERSION"
+echo "📁 Yedek dizini: $BACKUP_DIR"
 
