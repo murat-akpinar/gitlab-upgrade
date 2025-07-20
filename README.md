@@ -2,6 +2,16 @@
 
 Bu script, **Ubuntu 24.04** üzerinde kurulu GitLab CE (Community Edition) sürümünü, zorunlu sıralı sürüm geçişlerini takip ederek adım adım yükseltir.
 
+## ✅ Test Durumu
+
+| Dağıtım       | Test Durumu |
+|---------------|-------------|
+| Ubuntu 24.04  | ✅ Test Edildi |
+| Rocky Linux   | ⛔ Henüz Test Edilmedi |
+| Debian        | ⛔ Henüz Test Edilmedi |
+
+
+
 ## 📌 Amaç
 
 GitLab, belirli sürümler arasında **doğrudan yükseltmeye izin vermez**. Bu nedenle sürüm geçişleri sıralı şekilde yapılmalıdır. Bu script:
@@ -95,11 +105,47 @@ Script sonrası aşağıdaki testlerin manuel yapılması önerilir:
 
 Bu script, GitLab CE sistemlerini güvenli ve kontrollü şekilde yükseltmek isteyen sistem yöneticileri için hazırlanmıştır.
 
-## ✅ Test Durumu
 
-| Dağıtım       | Test Durumu |
-|---------------|-------------|
-| Ubuntu 24.04  | ✅ Test Edildi |
-| Rocky Linux   | ⛔ Henüz Test Edilmedi |
-| Debian        | ⛔ Henüz Test Edilmedi |
+
+# GitLab Yedeğe Geri Dönme Adımları
+
+Bu adımlar, belirli bir GitLab yedeğine geri dönmek için izlenmelidir.
+
+## 1. GitLab Servislerini Durdurun
+
+```bash
+gitlab-ctl stop unicorn
+gitlab-ctl stop sidekiq
+```
+
+## 2. Backup Dosyasını Belirleyin ve Geri Yükleyin
+
+> `/var/opt/gitlab/backups/` dizinindeki `.tar` uzantılı dosyalardan biri seçilmeli.
+
+```bash
+# Örnek:
+gitlab-backup restore BACKUP=1752974016_2025_07_20_17.3.7
+```
+
+## 3. Yapılandırma Dosyalarını Geri Yükleyin
+
+```bash
+cp /opt/gitlab_backup_17.3.7-ce.0/gitlab.rb /etc/gitlab/gitlab.rb
+cp /opt/gitlab_backup_17.3.7-ce.0/gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
+```
+
+## 4. GitLab Sürümünü Geri Alın (Downgrade)
+
+```bash
+apt install --allow-downgrades -y gitlab-ce=17.3.7-ce.0
+```
+
+## 5. Yapılandırmaları Yeniden Uygulayın ve Servisleri Başlatın
+
+```bash
+gitlab-ctl reconfigure
+gitlab-ctl restart
+```
+
+> ✅ Geri yükleme tamamlandıktan sonra arayüzde projelerinize ve verilere erişimi test edin.
 
