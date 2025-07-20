@@ -38,8 +38,6 @@ GitLab, belirli sürümler arasında **doğrudan yükseltmeye izin vermez**. Bu 
 git clone https://github.com/murat-akpinar/gitlab-upgrade.git
 ```
 
-İçeriği yukarıdaki `gitlab-upgrade.sh` ile aynı olacak şekilde ekleyin.
-
 ### 2. Yürütülebilir hale getirin
 
 ```bash
