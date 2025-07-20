@@ -8,7 +8,7 @@ Bu script, **Ubuntu 24.04** üzerinde kurulu GitLab CE (Community Edition) sür�
 |---------------|-------------|
 | Ubuntu 24.04  | ✅ Test Edildi |
 | Rocky Linux   | ⛔ Henüz Test Edilmedi |
-| Debian        | ⛔ Henüz Test Edilmedi |
+| Debian        | ✅ Test Edildi |
 
 
 
