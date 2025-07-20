@@ -97,6 +97,9 @@ Script sonrası aşağıdaki testlerin manuel yapılması önerilir:
 - Script içindeki `UPGRADE_PATHS` listesi sabittir ve [GitLab Upgrade Path Docs](https://docs.gitlab.com/ee/update/#upgrade-paths) referans alınarak hazırlanmıştır.
 - `apt install` komutu `--allow-downgrades` flag’i içerir; bu sayede versiyon eşleştirmeleri hassas yapılabilir.
 
+- [Upgrade Paths Doc](https://docs.gitlab.com/update/upgrade_paths/)
+- [Upgrade Path Web Tool](https://gitlab-com.gitlab.io/support/toolbox/upgrade-path/)
+
 ## 🛑 Uyarılar
 
 - Script `set -e` ile başlar, herhangi bir komutta hata oluşursa durur.
