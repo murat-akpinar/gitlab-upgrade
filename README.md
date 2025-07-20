@@ -81,6 +81,7 @@ Yedekler aşağıdaki dizinde saklanır:
 - `gitlab.rb`
 - `gitlab-secrets.json`
 - Otomatik alınan veri yedeği (`/var/opt/gitlab/backups`)
+- Aynı zamanda bu backup.tar dosyasını oluşan backup dizinin içine de kopyalıyor bu yedeği başka ortama da yedeklemek istersek tek bir dizini kopyalamak daha kolay olacağını düşündüm. 
 
 ## 🛠 Manuel Kontroller (Zorunlu)
 
