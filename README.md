@@ -35,9 +35,7 @@ GitLab, belirli sürümler arasında **doğrudan yükseltmeye izin vermez**. Bu 
 ### 1. Script'i indirin veya oluşturun
 
 ```bash
-nano gitlab-upgrade.sh
-# veya
-wget https://example.com/gitlab-upgrade.sh
+git clone https://github.com/murat-akpinar/gitlab-upgrade.git
 ```
 
 İçeriği yukarıdaki `gitlab-upgrade.sh` ile aynı olacak şekilde ekleyin.
