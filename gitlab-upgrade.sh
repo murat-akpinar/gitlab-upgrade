@@ -51,20 +51,39 @@ BACKUP_DIR="/opt/gitlab_backup_${CURRENT_VERSION}"
 echo "📂 Backup dizini oluşturuluyor: $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR" || { echo "❌ Backup dizini oluşturulamadı."; exit 1; }
 
-# 💾 Backup oluşturuluyor
-echo "💾 GitLab veritabanı yedeği alınıyor..."
+# 💾 GitLab veritabanı yedeği alınıyor
+echo "💾 GitLab yedeği alınıyor..."
 gitlab-backup create || { echo "❌ Backup alınamadı."; exit 1; }
 
-# 📦 .tar dosyasını bul ve kontrol et
+# 📦 .tar dosyasını bul
 BACKUP_FILE=$(ls -t /var/opt/gitlab/backups/*_gitlab_backup.tar | head -n 1)
 if [[ ! -f "$BACKUP_FILE" ]]; then
   echo "❌ Backup .tar dosyası bulunamadı!"
   exit 1
 fi
-echo "✅ .tar yedeği bulundu: $BACKUP_FILE"
+
+# ✅ Boyut kontrolü (100 KB altı ise şüpheli)
+if [[ $(stat -c%s "$BACKUP_FILE") -lt 102400 ]]; then
+  echo "⚠️ Yedek dosyası şüpheli derecede küçük!"
+  exit 1
+fi
 
 # 🗂️ .tar dosyasını yedek dizinine kopyala
 cp "$BACKUP_FILE" "$BACKUP_DIR/" || { echo "❌ .tar dosyası yedek dizinine kopyalanamadı."; exit 1; }
+
+# 🔐 SHA256 karşılaştırması
+COPIED_FILE="$BACKUP_DIR/$(basename "$BACKUP_FILE")"
+SOURCE_HASH=$(sha256sum "$BACKUP_FILE" | awk '{print $1}')
+DEST_HASH=$(sha256sum "$COPIED_FILE" | awk '{print $1}')
+
+if [[ "$SOURCE_HASH" != "$DEST_HASH" ]]; then
+  echo "❌ SHA256 kontrolü başarısız!"
+  echo "Kaynak: $SOURCE_HASH"
+  echo "Hedef : $DEST_HASH"
+  exit 1
+else
+  echo "✅ SHA256 kontrolü başarılı. Dosya bütünlüğü sağlandı."
+fi
 
 # 🛡️ Config dosyalarını yedekle
 cp /etc/gitlab/gitlab.rb "$BACKUP_DIR/" || { echo "❌ gitlab.rb yedeklenemedi."; exit 1; }
@@ -95,5 +114,4 @@ echo "🛠 Lütfen aşağıdaki testleri manuel yapın:"
 echo "- 🔐 Web UI kullanıcı girişi"
 echo "- 📁 Proje ve issue erişimi"
 echo "- 🔄 Git clone/push testi"
-echo "- 🚀 CI/CD job çalıştırma (varsa runner testleri)"
 
