@@ -47,7 +47,7 @@ chmod +x gitlab-upgrade.sh
 ### 3. Script'i çalıştırın (root yetkisiyle)
 
 ```bash
-sudo ./gitlab-upgrade.sh |& tee "gitlab-upgrade_$(date +%F_%H-%M-%S).log"
+sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
 ```
 
 ## 💡 Örnek Çıktı
