@@ -57,6 +57,168 @@ Ornek:
 - `backup.done` varsa veri backup tekrar alinmaz
 - `gitlab.rb` ve `gitlab-secrets.json` her adimda backup dizinine kopyalanir
 
+### 8) Gercek logdan ornek cikti
+
+Asagidaki bolum, `upgrade_log_2026-04-18_14-38-43.log` dosyasindan alinmis gercek bir ozet akistir:
+
+```text
+🔍 Mevcut versiyon okunuyor...
+✅ Mevcut versiyon: 17.11.2-ce.0
+📦 Repo'daki uygun sürümler listeleniyor...
+📋 Bulunan versiyon sayısı: 155
+
+==============================
+🔄 Upgrade adımı #1
+   17.11.2-ce.0 -> 17.11.7-ce.0
+==============================
+📀  Major 17.x için backup alınıyor...
+📁  Backup dizini: /opt/gitlab_backup_17.x
+🔎 GitLab sağlık kontrolleri çalıştırılıyor...
+🚩 Hedef sürüm: 17.11.7-ce.0
+✅ Adım tamamlandı. Yeni sürüm: 17.11.7-ce.0
+
+==============================
+🔄 Upgrade adımı #2
+   17.11.7-ce.0 -> 18.0.0-ce.0
+==============================
+⏭️  Major 17.x için backup daha önce alınmış, yeniden alınmıyor.
+📁  Backup dizini: /opt/gitlab_backup_17.x
+🔎 GitLab sağlık kontrolleri çalıştırılıyor...
+🚩 Hedef sürüm: 18.0.0-ce.0
+✅ Adım tamamlandı. Yeni sürüm: 18.0.0-ce.0
+
+==============================
+🔄 Upgrade adımı #3
+   18.0.0-ce.0 -> 18.2.8-ce.0
+==============================
+📀  Major 18.x için backup alınıyor...
+📁  Backup dizini: /opt/gitlab_backup_18.x
+🔎 GitLab sağlık kontrolleri çalıştırılıyor...
+🚩 Hedef sürüm: 18.2.8-ce.0
+```
+
+## Test Adimlari
+
+Major gecislerinden sonra kisa smoke test onerilir:
+
+1. Web UI login testi
+2. Proje/issue ekranina giris
+3. `git clone` ve `git push` testi
+
+Ek teknik kontroller:
+
+```bash
+sudo gitlab-rake gitlab:check
+sudo gitlab-rake gitlab:doctor:secrets
+sudo gitlab-rake gitlab:env:info
+```
+
+## Geri Donme (Rollback) Adimlari
+
+> Rollback, veri kaybi riskine karsi kontrollu yapilmalidir.
+
+1. Gerekli servisleri durdur:
+
+```bash
+sudo gitlab-ctl stop unicorn
+sudo gitlab-ctl stop sidekiq
+```
+
+2. Uygun backup'i geri yukle:
+
+```bash
+sudo gitlab-backup restore BACKUP=<backup_id>
+```
+
+3. Config dosyalarini backup dizininden geri koy:
+
+```bash
+sudo cp /opt/gitlab_backup_<major>.x/gitlab.rb /etc/gitlab/gitlab.rb
+sudo cp /opt/gitlab_backup_<major>.x/gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
+```
+
+4. Gerekirse paketi downgrade et:
+
+```bash
+sudo apt install --allow-downgrades -y gitlab-ce=<eski_surum>
+```
+
+5. Yeniden uygula ve servisleri baslat:
+
+```bash
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+```
+
+6. Son kontrol:
+
+- Web UI login
+- Proje erisimi
+- Git clone/push
+
+## Referanslar
+
+- [GitLab Upgrade Paths](https://docs.gitlab.com/update/upgrade_paths/)
+- [GitLab Linux package installation](https://docs.gitlab.com/install/package/)
+# GitLab Otomatik Yukseltme Scripti
+
+Bu repo, kurulu GitLab CE sunucusunu uygun upgrade path adimlari ile otomatik yukseltmek icin `gitlab-upgrade.sh` scriptini icerir.
+
+## Kurulum Adimlari
+
+### 1) On kosullar
+
+- Isletim sistemi: Ubuntu/Debian (`apt`) veya Rocky/RHEL (`dnf`)
+- Paket: `gitlab-ce`
+- Yetki: root veya sudo
+- Diskte backup icin yeterli alan
+
+> Not: Ubuntu 24.04 (Noble) deposunda 15.x gibi eski majorlar bulunmayabilir. Script sadece depoda bulunan surumlere gidebilir.
+
+### 2) GitLab CE reposunu ekle (Ubuntu/Debian)
+
+```bash
+curl -sS "https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh" | sudo bash
+sudo apt update
+```
+
+### 3) Kurulabilir surumleri gor
+
+```bash
+apt-cache madison gitlab-ce
+```
+
+### 4) Baslangic surumunu kur (ornek)
+
+```bash
+sudo EXTERNAL_URL="http://192.168.1.151" apt install -y gitlab-ce=17.11.2-ce.0
+sudo gitlab-ctl reconfigure
+```
+
+### 5) Upgrade scriptini calistir
+
+```bash
+sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
+```
+
+### 6) Script nasil surum secer?
+
+- Required stop minorlara oncelik verir: `x.2`, `x.5`, `x.8`, `x.11`
+- Her minorda en guncel patch'i alir
+- Tum patchleri tek tek kurmaz
+- Repoda daha yeni surum yoksa durur
+
+Ornek:
+
+`18.0.0 -> 18.2.latest -> 18.5.latest -> 18.8.latest -> 18.11.latest`
+
+### 7) Backup davranisi
+
+- Backup dizini major bazlidir: `/opt/gitlab_backup_17.x`, `/opt/gitlab_backup_18.x`
+- Ayni major icin `gitlab-backup create` bir kez calisir
+- `backup.done` varsa veri backup tekrar alinmaz
+- `gitlab.rb` ve `gitlab-secrets.json` her adimda backup dizinine kopyalanir
+
 Ornek log:
 
 ```text
