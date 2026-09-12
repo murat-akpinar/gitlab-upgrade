@@ -1,569 +1,157 @@
-# GitLab Otomatik Yukseltme Scripti
-
-Bu repo, kurulu GitLab CE sunucusunu uygun upgrade path adimlari ile otomatik yukseltmek icin `gitlab-upgrade.sh` scriptini icerir.
-
-## Kurulum Adimlari
-
-### 1) On kosullar
-
-- Isletim sistemi: Ubuntu/Debian (`apt`) veya Rocky/RHEL (`dnf`)
-- Paket: `gitlab-ce`
-- Yetki: root veya sudo
-- Diskte backup icin yeterli alan
-
-> Not: Ubuntu 24.04 (Noble) deposunda 15.x gibi eski majorlar bulunmayabilir. Script sadece depoda bulunan surumlere gidebilir.
-
-### 2) GitLab CE reposunu ekle (Ubuntu/Debian)
-
-```bash
-curl -sS "https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh" | sudo bash
-sudo apt update
-```
-
-### 3) Kurulabilir surumleri gor
-
-```bash
-apt-cache madison gitlab-ce
-```
-
-### 4) Baslangic surumunu kur (ornek)
-
-```bash
-sudo EXTERNAL_URL="http://192.168.1.151" apt install -y gitlab-ce=17.11.2-ce.0
-sudo gitlab-ctl reconfigure
-```
-
-### 5) Upgrade scriptini calistir
-
-```bash
-sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
-```
-
-### 6) Script nasil surum secer?
-
-- Required stop minorlara oncelik verir: `x.2`, `x.5`, `x.8`, `x.11`
-- Her minorda en guncel patch'i alir
-- Tum patchleri tek tek kurmaz
-- Repoda daha yeni surum yoksa durur
-
-Ornek:
-
-`18.0.0 -> 18.2.latest -> 18.5.latest -> 18.8.latest -> 18.11.latest`
-
-### 7) Backup davranisi
-
-- Backup dizini major bazlidir: `/opt/gitlab_backup_17.x`, `/opt/gitlab_backup_18.x`
-- Ayni major icin `gitlab-backup create` bir kez calisir
-- `backup.done` varsa veri backup tekrar alinmaz
-- `gitlab.rb` ve `gitlab-secrets.json` her adimda backup dizinine kopyalanir
-
-### 8) Gercek logdan ornek cikti
-
-Asagidaki bolum, `upgrade_log_2026-04-18_14-38-43.log` dosyasindan alinmis gercek bir ozet akistir:
-
-```text
-🔍 Mevcut versiyon okunuyor...
-✅ Mevcut versiyon: 17.11.2-ce.0
-📦 Repo'daki uygun sürümler listeleniyor...
-📋 Bulunan versiyon sayısı: 155
-
-==============================
-🔄 Upgrade adımı #1
-   17.11.2-ce.0 -> 17.11.7-ce.0
-==============================
-📀  Major 17.x için backup alınıyor...
-📁  Backup dizini: /opt/gitlab_backup_17.x
-🔎 GitLab sağlık kontrolleri çalıştırılıyor...
-🚩 Hedef sürüm: 17.11.7-ce.0
-✅ Adım tamamlandı. Yeni sürüm: 17.11.7-ce.0
-
-==============================
-🔄 Upgrade adımı #2
-   17.11.7-ce.0 -> 18.0.0-ce.0
-==============================
-⏭️  Major 17.x için backup daha önce alınmış, yeniden alınmıyor.
-📁  Backup dizini: /opt/gitlab_backup_17.x
-🔎 GitLab sağlık kontrolleri çalıştırılıyor...
-🚩 Hedef sürüm: 18.0.0-ce.0
-✅ Adım tamamlandı. Yeni sürüm: 18.0.0-ce.0
-
-==============================
-🔄 Upgrade adımı #3
-   18.0.0-ce.0 -> 18.2.8-ce.0
-==============================
-📀  Major 18.x için backup alınıyor...
-📁  Backup dizini: /opt/gitlab_backup_18.x
-🔎 GitLab sağlık kontrolleri çalıştırılıyor...
-🚩 Hedef sürüm: 18.2.8-ce.0
-```
-
-## Test Adimlari
-
-Major gecislerinden sonra kisa smoke test onerilir:
-
-1. Web UI login testi
-2. Proje/issue ekranina giris
-3. `git clone` ve `git push` testi
-
-Ek teknik kontroller:
-
-```bash
-sudo gitlab-rake gitlab:check
-sudo gitlab-rake gitlab:doctor:secrets
-sudo gitlab-rake gitlab:env:info
-```
-
-## Geri Donme (Rollback) Adimlari
-
-> Rollback, veri kaybi riskine karsi kontrollu yapilmalidir.
-
-1. Gerekli servisleri durdur:
-
-```bash
-sudo gitlab-ctl stop unicorn
-sudo gitlab-ctl stop sidekiq
-```
-
-2. Uygun backup'i geri yukle:
-
-```bash
-sudo gitlab-backup restore BACKUP=<backup_id>
-```
-
-3. Config dosyalarini backup dizininden geri koy:
-
-```bash
-sudo cp /opt/gitlab_backup_<major>.x/gitlab.rb /etc/gitlab/gitlab.rb
-sudo cp /opt/gitlab_backup_<major>.x/gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
-```
-
-4. Gerekirse paketi downgrade et:
-
-```bash
-sudo apt install --allow-downgrades -y gitlab-ce=<eski_surum>
-```
-
-5. Yeniden uygula ve servisleri baslat:
-
-```bash
-sudo gitlab-ctl reconfigure
-sudo gitlab-ctl restart
-```
-
-6. Son kontrol:
-
-- Web UI login
-- Proje erisimi
-- Git clone/push
-
-## Referanslar
-
-- [GitLab Upgrade Paths](https://docs.gitlab.com/update/upgrade_paths/)
-- [GitLab Linux package installation](https://docs.gitlab.com/install/package/)
-# GitLab Otomatik Yukseltme Scripti
-
-Bu repo, kurulu GitLab CE sunucusunu uygun upgrade path adimlari ile otomatik yukseltmek icin `gitlab-upgrade.sh` scriptini icerir.
-
-## Kurulum Adimlari
-
-### 1) On kosullar
-
-- Isletim sistemi: Ubuntu/Debian (`apt`) veya Rocky/RHEL (`dnf`)
-- Paket: `gitlab-ce`
-- Yetki: root veya sudo
-- Diskte backup icin yeterli alan
-
-> Not: Ubuntu 24.04 (Noble) deposunda 15.x gibi eski majorlar bulunmayabilir. Script sadece depoda bulunan surumlere gidebilir.
-
-### 2) GitLab CE reposunu ekle (Ubuntu/Debian)
-
-```bash
-curl -sS "https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh" | sudo bash
-sudo apt update
-```
-
-### 3) Kurulabilir surumleri gor
-
-```bash
-apt-cache madison gitlab-ce
-```
-
-### 4) Baslangic surumunu kur (ornek)
-
-```bash
-sudo EXTERNAL_URL="http://192.168.1.151" apt install -y gitlab-ce=17.11.2-ce.0
-sudo gitlab-ctl reconfigure
-```
-
-### 5) Upgrade scriptini calistir
-
-```bash
-sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
-```
-
-### 6) Script nasil surum secer?
-
-- Required stop minorlara oncelik verir: `x.2`, `x.5`, `x.8`, `x.11`
-- Her minorda en guncel patch'i alir
-- Tum patchleri tek tek kurmaz
-- Repoda daha yeni surum yoksa durur
-
-Ornek:
-
-`18.0.0 -> 18.2.latest -> 18.5.latest -> 18.8.latest -> 18.11.latest`
-
-### 7) Backup davranisi
-
-- Backup dizini major bazlidir: `/opt/gitlab_backup_17.x`, `/opt/gitlab_backup_18.x`
-- Ayni major icin `gitlab-backup create` bir kez calisir
-- `backup.done` varsa veri backup tekrar alinmaz
-- `gitlab.rb` ve `gitlab-secrets.json` her adimda backup dizinine kopyalanir
-
-Ornek log:
-
-```text
-==============================
-🔄 Upgrade adımı #2
-   17.11.7-ce.0 -> 18.0.0-ce.0
-==============================
-⏭️  Major 17.x için backup daha önce alınmış, yeniden alınmıyor.
-📁  Backup dizini: /opt/gitlab_backup_17.x
-🔎 GitLab sağlık kontrolleri çalıştırılıyor...
-```
-
-## Test Adimlari
-
-Major gecislerinden sonra kisa smoke test onerilir:
-
-1. Web UI login testi
-2. Proje/issue ekranina giris
-3. `git clone` ve `git push` testi
-
-Ek teknik kontroller:
-
-```bash
-sudo gitlab-rake gitlab:check
-sudo gitlab-rake gitlab:doctor:secrets
-sudo gitlab-rake gitlab:env:info
-```
-
-## Geri Donme (Rollback) Adimlari
-
-> Rollback, veri kaybi riskine karsi kontrollu yapilmalidir.
-
-1. Gerekli servisleri durdur:
-
-```bash
-sudo gitlab-ctl stop unicorn
-sudo gitlab-ctl stop sidekiq
-```
-
-2. Uygun backup'i geri yukle:
-
-```bash
-sudo gitlab-backup restore BACKUP=<backup_id>
-```
-
-3. Config dosyalarini backup dizininden geri koy:
-
-```bash
-sudo cp /opt/gitlab_backup_<major>.x/gitlab.rb /etc/gitlab/gitlab.rb
-sudo cp /opt/gitlab_backup_<major>.x/gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
-```
-
-4. Gerekirse paketi downgrade et:
-
-```bash
-sudo apt install --allow-downgrades -y gitlab-ce=<eski_surum>
-```
-
-5. Yeniden uygula ve servisleri baslat:
-
-```bash
-sudo gitlab-ctl reconfigure
-sudo gitlab-ctl restart
-```
-
-6. Son kontrol:
-
-- Web UI login
-- Proje erisimi
-- Git clone/push
-
-## Referanslar
-
-- [GitLab Upgrade Paths](https://docs.gitlab.com/update/upgrade_paths/)
-- [GitLab Linux package installation](https://docs.gitlab.com/install/package/)
-# GitLab Otomatik Yukseltme Scripti
-
-Bu proje, kurulu bir GitLab CE sunucusunu resmi paket deposundaki uygun adimlari izleyerek otomatik sekilde yukselten bir Bash scripti sunar.
-
-Script dosyasi: `gitlab-upgrade.sh`
-
-## Ne Yapar?
-
-- Mevcut GitLab surumunu otomatik algilar.
-- Repodaki uygun surumleri (`apt` veya `dnf`) listeler.
-- Bir sonraki hedef surumu kurallara gore secer.
-- Her adim oncesi/sirasi gerekli kontrolleri calistirir.
-- Major bazli backup alir ve config dosyalarini kopyalar.
-
-## Destek ve Kapsam
-
-- Paket: yalnizca `gitlab-ce`
-- Paket yoneticisi: `apt` (Ubuntu/Debian) ve `dnf` (RHEL/Rocky)
-- Scriptin amaci: mevcut kurulu GitLab CE'yi guvenli sekilde ileri tasimak
-
-> Not: Ubuntu 24.04 (Noble) uzerinde cok eski majorlar (ornegin 15.x) resmi depoda bulunmayabilir. Script sadece depoda gercekten var olan surumlerle calisir.
-
-## Versiyon Gecis Mantigi
-
-Script, GitLab upgrade path yaklasimina gore ilerler:
-
-- Required stop minor'larina oncelik verir: `x.2`, `x.5`, `x.8`, `x.11`
-- Her hedef minorda tek tek tum patch'leri degil, o minorun en guncel patch'ini kurar
-- Ayni major bittiginde bir sonraki majora gecer
-- Repoda daha yeni surum yoksa durur
-
-Ornek akis:
-
-`18.0.0 -> 18.2.latest -> 18.5.latest -> 18.8.latest -> 18.11.latest`
-
-## Backup Davranisi
-
-Backup dizini major bazinda olusur:
-
-- `/opt/gitlab_backup_17.x`
-- `/opt/gitlab_backup_18.x`
-
-Kurallar:
-
-- Ayni major icin veri backup'i (`gitlab-backup create`) bir kez alinir
-- `backup.done` varsa tekrar veri backup'i alinmaz
-- `gitlab.rb` ve `gitlab-secrets.json` her adimda bu dizine kopyalanir
-
-## On Kosullar
-
-1. GitLab CE kurulu olmali
-2. Resmi GitLab paketi deposu ekli olmali
-3. Root veya sudo yetkisi olmali
-4. Diskte backup icin yeterli alan olmali
-
-Ubuntu icin repo ekleme:
-
-```bash
-curl -sS "https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh" | sudo bash
-```
-
-Depodaki surumleri gormek:
-
-```bash
-apt-cache madison gitlab-ce
-```
-
-## Kullanim
-
-```bash
-sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
-```
-
-## Scriptin Calisma Sirasi
-
-Her upgrade adiminda ozetle:
-
-1. Backup kontrolu/alimi
-2. Saglik kontrolleri (`gitlab:check`, `gitlab:doctor:secrets`)
-3. Hedef surumun kurulumu
-4. `gitlab-ctl reconfigure`
-5. `gitlab-ctl upgrade`
-6. `gitlab-ctl restart`
-7. Tekrar saglik kontrolleri
-
-Herhangi bir adim hata verirse script durur (`set -Eeuo pipefail`).
-
-## Manuel Smoke Test (onerilir)
-
-Her major gecisi sonrasi asagidakileri hizlica test edin:
-
-- Web UI login
-- Bir proje/issue ekrani acilisi
-- `git clone` ve `git push`
-
-## Ornek Log Parcasi
-
-```text
-==============================
-Upgrade adimi #3
-  18.0.0-ce.0 -> 18.2.8-ce.0
-==============================
-```
-
-Bu, required stop mantigina gore beklenen bir adimdir.
-
-## Rollback (Genel Adimlar)
-
-1. Gerekli servisleri durdur
-2. Uygun backup dosyasini geri yukle
-3. `gitlab.rb` ve `gitlab-secrets.json` dosyalarini backup dizininden geri kopyala
-4. Gerekirse hedef eski paketi downgrade et
-5. `gitlab-ctl reconfigure` ve `gitlab-ctl restart` calistir
-
-Ornek:
-
-```bash
-gitlab-backup restore BACKUP=<backup_id>
-cp /opt/gitlab_backup_17.x/gitlab.rb /etc/gitlab/gitlab.rb
-cp /opt/gitlab_backup_17.x/gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
-apt install --allow-downgrades -y gitlab-ce=<eski_surum>
-gitlab-ctl reconfigure
-gitlab-ctl restart
-```
-
-## Referanslar
-
-- [GitLab Upgrade Paths](https://docs.gitlab.com/update/upgrade_paths/)
-- [GitLab Linux package installation](https://docs.gitlab.com/install/package/)
 # 🔼 GitLab Otomatik Yükseltme Script'i
 
-Bu script, **Ubuntu 24.04** üzerinde kurulu GitLab CE (Community Edition) sürümünü, zorunlu sıralı sürüm geçişlerini takip ederek adım adım yükseltir.
+Tek node, Linux paketi (Omnibus) ile kurulmuş **GitLab CE**'yi resmi upgrade path'e uyarak, required stop'lardan geçe geçe repodaki en yeni sürüme taşıyan Bash scripti.
+
+Script dosyası: `gitlab-upgrade.sh`
 
 ## ✅ Test Durumu
 
-| Dağıtım       | Test Durumu |
-|---------------|-------------|
-| Ubuntu 24     | ✅ Test Edildi |
-| Rocky 9       | ✅ Test Edildi |
-| Debian 11     | ✅ Test Edildi |
+| Dağıtım   | Test Durumu    |
+|-----------|----------------|
+| Ubuntu 24 | ✅ Test Edildi |
+| Rocky 9   | ✅ Test Edildi |
+| Debian 11 | ✅ Test Edildi |
 
+## ⚙ Ne Yapar?
 
+Başlangıçta bir kez:
 
-## 📌 Amaç
+- Root ve `skip-auto-reconfigure` kontrolü
+- **Eşzamanlı çalışmayı `flock` ile engeller** (`/run/gitlab-upgrade.lock`); ikinci kopya reddedilir
 
-GitLab, belirli sürümler arasında **doğrudan yükseltmeye izin vermez**. Bu nedenle sürüm geçişleri sıralı şekilde yapılmalıdır. Bu script:
+Her upgrade adımında sırayla:
 
-- Mevcut GitLab sürümünü algılar
-- Sıradaki geçerli sürümü belirler
-- Yedek alır
-- Güncellemeyi gerçekleştirir
-- Gerekli kontrolleri yapar
+1. Sürüm atlama ve GitLab 19 (Mattermost kaldırıldı) ön kontrolleri
+2. **Disk alanı kontrolü** (`ensure_disk_space`): PG data kopyası + emniyet payı kadar boş alan yoksa baştan durur (en çok PG 16→17 anını korur)
+3. Major bazlı backup (`/opt/gitlab_backup_<major>.x`), config dosyalarının kopyası
+4. **Batched background migration'ların bitmesini bekler** (GitLab dokümanı: her upgrade'den önce hepsi `finished` olmalı; `failed` görürse durur)
+5. Hedef paketi kurar; paket kurulumu `gitlab-ctl upgrade`'i (reconfigure + db:migrate + restart) kendisi çalıştırır
+6. **Sert sağlık kapısı** (`verify_running`): tüm servisler ayakta ve uygulama `/-/readiness`'e cevap verene kadar bekler, olmazsa durur
+7. `gitlab:check` ve `gitlab:doctor:secrets` (bilgi amaçlı; zararsız uyarılar upgrade'i **durdurmaz**)
 
-## ⚙ Özellikler
+Herhangi bir komut hata verirse script durur (`set -Eeuo pipefail`) ve şu anki sürüm + backup dizini + rollback ipucunu basar. Tekrar çalıştırıldığında kaldığı sürümden devam eder.
 
-- 🔁 Adım bazlı upgrade akışı (`Upgrade adımı #n` + `from -> to`)
-- 💾 Major bazlı yedekleme (`/opt/gitlab_backup_<major>.x`)
-- ⏭️ Aynı major için backup daha önce alındıysa yeniden almaz (`backup.done`)
-- 🔎 Upgrade öncesi ve sonrası GitLab sağlık kontrollerini çalıştırır
-- 📦 Hedef paketi kurar, `reconfigure`, `upgrade` ve `restart` uygular
+## 📌 Sürüm Seçimi
+
+Kural: mevcut sürümden yeni en küçük major içinde, **ilk required stop'a kadar (dahil) en yüksek minor**'ün en yeni patch'i.
+
+Required stop'lar ([Upgrade Paths](https://docs.gitlab.com/update/upgrade_paths/)):
+
+| Major | Required stop minor'ları                       |
+|-------|------------------------------------------------|
+| 15.x  | 0, 1*, 4, 11                                   |
+| 16.x  | 0*, 1*, 2*, 3, 7, 11                           |
+| 17.x  | 1*, 3, 5, 8, 11                                |
+| 18.x+ | 2, 5, 8, 11 (17.5+ için resmi sabit takvim)    |
+
+`*` koşullu stop'lar: güvenli tarafta kalmak için script bunları da uygular.
+
+Örnek akış:
+
+```text
+17.11.2 -> 17.11.latest -> 18.2.latest -> 18.5.latest -> 18.8.latest -> 18.11.latest -> 19.2.latest -> ...
+```
+
+Path mantığı için tek testi çalıştırmak: `bash test_upgrade_path.sh`
+
+## 💾 Backup Davranışı
+
+- Backup dizini major bazlıdır: `/opt/gitlab_backup_17.x`, `/opt/gitlab_backup_18.x`
+- Aynı major için `gitlab-backup create` (`STRATEGY=copy`) bir kez çalışır; `backup.done` varsa tekrar alınmaz
+- `gitlab.rb` ve `gitlab-secrets.json` her adımda dizine kopyalanır
+- Backup tar dosyası da aynı dizine kopyalanır; başka ortama taşımak için tek dizin yeter
+
+> ⚠️ Restore, backup'ın alındığı GitLab sürümüyle birebir aynı sürümde yapılmalıdır. Major başındaki backup'a dönmek için o sürüme downgrade gerekir. Her adımda backup istiyorsanız `backup.done` dosyasını her adımdan önce silin.
 
 ## 📝 Kullanım
 
-### 1. Script'i indirin veya oluşturun
+Ön koşullar: root/sudo, resmi GitLab paket deposu ekli, backup için yeterli disk.
 
 ```bash
-git clone https://github.com/murat-akpinar/gitlab-upgrade.git
-cd gitlab-upgrade
-```
+# Ubuntu/Debian için repo
+curl -sS "https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh" | sudo bash
 
-### 2. Script'i çalıştırın (root yetkisiyle)
+# Repodaki sürümler
+apt-cache madison gitlab-ce            # Debian/Ubuntu
+dnf repoquery gitlab-ce                # RHEL/Rocky
 
-```bash
+# Çalıştır
 sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
 ```
+
+Ayarlar (ortam değişkeni):
+
+| Değişken             | Varsayılan                     | Açıklama                                                          |
+|----------------------|--------------------------------|------------------------------------------------------------------|
+| `BBM_WAIT_MINUTES`   | `120`                          | Background migration bekleme üst sınırı; dolarsa durur           |
+| `READY_WAIT_MINUTES` | `15`                           | Adım sonrası uygulamanın hazır olması için bekleme üst sınırı    |
+| `READINESS_URL`      | `http://127.0.0.1/-/readiness` | Sağlık kapısının kontrol ettiği adres (https/farklı host için)   |
+| `DISK_MARGIN_MB`     | `2048`                         | PG data kopyası üstüne istenen boş alan payı (MB)                |
+
+> Not: Ubuntu 24.04 (Noble) deposunda 15.x gibi eski majorlar bulunmayabilir. Script sadece depoda bulunan sürümlere gidebilir; ara major eksikse durur.
 
 ## 💡 Örnek Çıktı
 
 ```text
 ==============================
 🔄 Upgrade adımı #2
-   17.11.7-ce.0 -> 18.0.0-ce.0
+   17.11.7 -> 18.2.10-ce.0
 ==============================
 ⏭️  Major 17.x için backup daha önce alınmış, yeniden alınmıyor.
 📁  Backup dizini: /opt/gitlab_backup_17.x
-🔎 GitLab sağlık kontrolleri çalıştırılıyor...
+⏳ Bitmemiş batched background migration var (0 sn beklendi):
+BackfillSomething ci_builds.id [active]
+✅ Bekleyen background migration yok.
+🚩 Hedef sürüm: 18.2.10-ce.0
+✅ Servisler ayakta ve uygulama hazır.
+✅ Adım tamamlandı. Yeni sürüm: 18.2.10
 ```
 
-## 📁 Yedekler
+Gerçek bir 18.1.6 → 19.3.2 koşusu tek script çalıştırmasıyla test edildi:
 
-Yedekler aşağıdaki dizinde saklanır:
-
-```
-/opt/gitlab_backup_<MEVCUT_SÜRÜM>
+```text
+18.1.6 → 18.2.8 → 18.5.7 → 18.8.11 → 18.11.11 → 19.2.6 → 19.3.2
 ```
 
-İçerik:
+18.11 adımında paket PostgreSQL'i 16'dan 17'ye otomatik yükseltti.
 
-- `gitlab.rb`
-- `gitlab-secrets.json`
-- Otomatik alınan veri yedeği (`/var/opt/gitlab/backups`)
-- Aynı zamanda bu backup.tar dosyasını oluşan backup dizinin içine de kopyalıyor bu yedeği başka ortama da yedeklemek istersek tek bir dizini kopyalamak daha kolay olacağını düşündüm. 
+## 🧷 GitLab 19 Notları
 
-## 🛠 Manuel Kontroller (Zorunlu)
+- PostgreSQL 17 zorunlu. 18.11 paketi kurulurken PG otomatik 17'ye yükseltilir; yükseltilmediyse 19.0 paketi kurulumu reddeder. `/etc/gitlab/disable-postgresql-upgrade` dosyası varsa elle `gitlab-ctl pg-upgrade -V 17` gerekir.
+- Bundled Mattermost ve Spamcheck kaldırıldı; `gitlab.rb`'de `mattermost` ayarı varsa script 19'a geçmeden durur.
+- Harici Redis 6 desteklenmiyor (7.0+ veya Valkey 7.2 gerekir).
+- Ubuntu 20.04 için 19.x paketi yok; script en son 18.x'te durur.
 
-Script sonrası aşağıdaki testlerin manuel yapılması önerilir:
+## 🛠 Manuel Kontroller
+
+Script sonrası:
 
 - 🔐 Web UI kullanıcı girişi
 - 📁 Proje ve issue erişimi
-- 🔄 Git üzerinden clone/push işlemleri
+- 🔄 Git clone/push
 
-## 🧷 Notlar
+## ↩️ Rollback
 
-- Bu script sadece **GitLab CE** sürümleri içindir.
-- Script içindeki `UPGRADE_PATHS` listesi sabittir ve [GitLab Upgrade Path Docs](https://docs.gitlab.com/ee/update/#upgrade-paths) referans alınarak hazırlanmıştır.
-- `apt install` komutu `--allow-downgrades` flag’i içerir; bu sayede versiyon eşleştirmeleri hassas yapılabilir.
-
-- [Upgrade Paths Doc](https://docs.gitlab.com/update/upgrade_paths/)
-- [Upgrade Path Web Tool](https://gitlab-com.gitlab.io/support/toolbox/upgrade-path/)
-
-## 🛑 Uyarılar
-
-- Script `set -e` ile başlar, herhangi bir komutta hata oluşursa durur.
-- Yükseltme sırasında sistem yükünü azaltın, mümkünse yedek bir ortamda test edin.
-
-## 🧑‍💻 Yazar
-
-Bu script, GitLab CE sistemlerini güvenli ve kontrollü şekilde yükseltmek isteyen sistem yöneticileri için hazırlanmıştır.
-
-
-
-# GitLab Yedeğe Geri Dönme Adımları
-
-Bu adımlar, belirli bir GitLab yedeğine geri dönmek için izlenmelidir.
-
-## 1. GitLab Servislerini Durdurun
+> Rollback, veri kaybı riskine karşı kontrollü yapılmalıdır. Restore edilen backup ile kurulu GitLab sürümü aynı olmalıdır.
 
 ```bash
-gitlab-ctl stop unicorn
-gitlab-ctl stop sidekiq
+sudo gitlab-ctl stop puma
+sudo gitlab-ctl stop sidekiq
+
+sudo apt install --allow-downgrades -y gitlab-ce=<backup_surumu>-ce.0   # önce backup'ın alındığı sürüme dön
+sudo cp /opt/gitlab_backup_<major>.x/gitlab.rb /etc/gitlab/gitlab.rb
+sudo cp /opt/gitlab_backup_<major>.x/gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
+sudo gitlab-backup restore BACKUP=<backup_id>
+
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+sudo gitlab-rake gitlab:check SANITIZE=true
 ```
 
-## 2. Backup Dosyasını Belirleyin ve Geri Yükleyin
+## 📚 Referanslar
 
-> `/var/opt/gitlab/backups/` dizinindeki `.tar` uzantılı dosyalardan biri seçilmeli.
-
-```bash
-# Örnek:
-gitlab-backup restore BACKUP=1752974016_2025_07_20_17.3.7
-```
-
-## 3. Yapılandırma Dosyalarını Geri Yükleyin
-
-```bash
-cp /opt/gitlab_backup_17.3.7-ce.0/gitlab.rb /etc/gitlab/gitlab.rb
-cp /opt/gitlab_backup_17.3.7-ce.0/gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
-```
-
-## 4. GitLab Sürümünü Geri Alın (Downgrade)
-
-```bash
-apt install --allow-downgrades -y gitlab-ce=17.3.7-ce.0
-```
-
-## 5. Yapılandırmaları Yeniden Uygulayın ve Servisleri Başlatın
-
-```bash
-gitlab-ctl reconfigure
-gitlab-ctl restart
-```
-
-> ✅ Geri yükleme tamamlandıktan sonra arayüzde projelerinize ve verilere erişimi test edin.
-
+- [Upgrade Paths](https://docs.gitlab.com/update/upgrade_paths/)
+- [Background migrations](https://docs.gitlab.com/update/background_migrations/)
+- [Linux package upgrade](https://docs.gitlab.com/update/package/)
+- [GitLab 19 changes](https://docs.gitlab.com/update/versions/gitlab_19_changes/)
+- [Upgrade Path Tool](https://gitlab-com.gitlab.io/support/toolbox/upgrade-path/)
