@@ -116,13 +116,24 @@ BackfillSomething ci_builds.id [active]
 ✅ Adım tamamlandı. Yeni sürüm: 18.2.10
 ```
 
-Gerçek bir 18.1.6 → 19.3.2 koşusu tek script çalıştırmasıyla test edildi:
+## ⏱ Gerçek Koşu: 18.1.6 → 19.3.2
 
-```text
-18.1.6 → 18.2.8 → 18.5.7 → 18.8.11 → 18.11.11 → 19.2.6 → 19.3.2
-```
+Ubuntu 24.04, VMware VM (8 CPU / 16 GB), temiz kurulum + 1 test projesi. Tek script çalıştırması, müdahale gerekmedi. **Toplam 1 sa 36 dk.**
 
-18.11 adımında paket PostgreSQL'i 16'dan 17'ye otomatik yükseltti.
+| Adım | Geçiş             | Süre  | Not                                          |
+|------|-------------------|-------|----------------------------------------------|
+| 1    | 18.1.6 → 18.2.8   | 6 dk  |                                              |
+| 2    | 18.2.8 → 18.5.7   | 8 dk  | 2 dk BBM beklemesi                           |
+| 3    | 18.5.7 → 18.8.11  | 19 dk | 14 dk BBM beklemesi                          |
+| 4    | 18.8.11 → 18.11.11| 29 dk | 23 dk BBM beklemesi, PostgreSQL 16.11 → 17.10 |
+| 5    | 18.11.11 → 19.2.6 | 19 dk | 14 dk BBM beklemesi, major geçiş             |
+| 6    | 19.2.6 → 19.3.2   | 13 dk | 8 dk BBM beklemesi                           |
+
+Sürenin yarısından fazlası **batched background migration (BBM) beklemesi**. Bu script'in yavaşlığı değil, GitLab'in zorunlu kuralı: her sürümün getirdiği veri migration'ları Sidekiq'te arka planda, dakikada bir tur halinde işlenir ve bir sonraki required stop'a geçmeden hepsi `finished` olmalıdır (aksi halde `gitlab-ctl upgrade` "pending migrations" hatasıyla durur). Boş bir instance'ta bile her stop 10-20 dk bekletir; verili instance'ta tablo boyutuyla orantılı uzar. `BBM_WAIT_MINUTES` dolarsa script temiz durur, migration'lar bitince tekrar çalıştırıldığında kaldığı yerden devam eder.
+
+Neden 18.1'den doğrudan 18.8'e gidilmiyor? 17.5'ten itibaren her major'da **x.2, x.5, x.8, x.11** zorunlu durak; her durağın BBM'leri bir sonrakinin şema değişikliğinin ön koşulu. Durak olmayan minor'lar (18.3, 18.4, 18.6...) atlanır.
+
+Koşu sonunda: tüm servisler `run`, `/-/readiness` 200, PostgreSQL 17.10, test verisi yerinde, `/opt/gitlab_backup_18.x` (18.1.6) ve `/opt/gitlab_backup_19.x` (19.2.6) backup'ları `700`/`600` izinlerle mevcut.
 
 ## 🧷 GitLab 19 Notları
 
