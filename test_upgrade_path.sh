@@ -39,4 +39,23 @@ check 19.4.0 ""
 # dnf formatı (.el9) da aynı çalışmalı
 repo=(18.11.4-ce.0.el9 19.0.3-ce.0.el9 19.2.1-ce.0.el9 19.2.5-ce.0.el9)
 check 18.11.4 "19.2.5-ce.0.el9"
-echo "ALL OK"
+echo "ALL OK (path)"
+
+# Repoda eksik required stop sessizce atlanmamalı: hata ver (exit != 0, boş çıktı)
+expect_fail() {
+  local out; out="$(find_next_version "$1" "${repo[@]}" 2>/dev/null)" && { echo "FAIL from $1: hata beklenirdi, gelen: $out"; exit 1; }
+  echo "ok  $1 -> hata (eksik stop)"
+}
+# 18.5 repoda yok ama 18.8 var -> 18.2'den 18.8'e atlanmamalı
+repo=(18.2.8-ce.0 18.3.5-ce.0 18.8.11-ce.0 18.11.11-ce.0)
+expect_fail 18.2.8
+# 17.11 repoda yok ama 18.2 var -> 17.10'dan major geçilmemeli
+repo=(17.10.8-ce.0 18.2.8-ce.0)
+expect_fail 17.10.8
+# Stop henüz yayınlanmamışsa (repoda ondan yenisi de yok) en yüksek minor'a gitmek serbest
+repo=(19.2.5-ce.0 19.3.1-ce.0 19.4.0-ce.0)
+check 19.2.5 "19.4.0-ce.0"
+# Bir sonraki major yoksa (Ubuntu 20.04'te 19.x yok) x.11'de dur
+repo=(18.11.4-ce.0)
+check 18.11.4 ""
+echo "ALL OK (stop kontrolleri)"

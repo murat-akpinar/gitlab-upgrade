@@ -18,11 +18,14 @@ Başlangıçta bir kez:
 
 - Root ve `skip-auto-reconfigure` kontrolü
 - **Eşzamanlı çalışmayı `flock` ile engeller** (`/run/gitlab-upgrade.lock`); ikinci kopya reddedilir
+- **Kendi log dosyasını yazar**: `/var/log/gitlab-upgrade/upgrade_<tarih>.log` (ekrana da basar, satırlar zaman damgalı)
+- **GitLab paket deposu ekli mi** kontrol eder (`packages.gitlab.com`); değilse durur
+- **Yarım kalmış kurulum** kontrolü: paket `dpkg`/`rpm`'de tutarsızsa veya uygulanmamış DB migration varsa durur (aksi halde VERSION dosyası yeni sürümü gösterip bir sonraki adıma geçilirdi)
 
 Her upgrade adımında sırayla:
 
 1. Sürüm atlama ve GitLab 19 (Mattermost kaldırıldı) ön kontrolleri
-2. **Disk alanı kontrolü** (`ensure_disk_space`): PG data kopyası + emniyet payı kadar boş alan yoksa baştan durur (en çok PG 16→17 anını korur)
+2. **Disk alanı kontrolü** (`ensure_disk_space`): PG data kopyası + (backup alınacaksa) repo/upload boyutu + emniyet payı; `/opt` kopyası da hesaba katılır. Yetmiyorsa baştan durur
 3. Major bazlı backup (`/opt/gitlab_backup_<major>.x`), config dosyalarının kopyası
 4. **Batched background migration'ların bitmesini bekler** (GitLab dokümanı: her upgrade'den önce hepsi `finished` olmalı; `failed` görürse durur)
 5. Hedef paketi kurar; paket kurulumu `gitlab-ctl upgrade`'i (reconfigure + db:migrate + restart) kendisi çalıştırır
@@ -46,6 +49,8 @@ Required stop'lar ([Upgrade Paths](https://docs.gitlab.com/update/upgrade_paths/
 
 `*` koşullu stop'lar: güvenli tarafta kalmak için script bunları da uygular.
 
+Bir required stop **repoda hiç yoksa** (örn. Ubuntu 24.04 deposunda eski minor'lar) script o stop'un üstünden atlamaz, hata verip durur. Stop henüz yayınlanmamışsa (repoda ondan yenisi de yok) mevcut en yüksek minor'a gider.
+
 Örnek akış:
 
 ```text
@@ -60,6 +65,8 @@ Path mantığı için tek testi çalıştırmak: `bash test_upgrade_path.sh`
 - Aynı major için `gitlab-backup create` (`STRATEGY=copy`) bir kez çalışır; `backup.done` varsa tekrar alınmaz
 - `gitlab.rb` ve `gitlab-secrets.json` her adımda dizine kopyalanır
 - Backup tar dosyası da aynı dizine kopyalanır; başka ortama taşımak için tek dizin yeter
+- Dizin `700`, secrets dosyası orijinal izinleriyle (`600`) kopyalanır
+- `SKIP_BACKUP=1` ile `gitlab-backup` atlanır (VM snapshot aldıysanız); config kopyası yine alınır
 
 > ⚠️ Restore, backup'ın alındığı GitLab sürümüyle birebir aynı sürümde yapılmalıdır. Major başındaki backup'a dönmek için o sürüme downgrade gerekir. Her adımda backup istiyorsanız `backup.done` dosyasını her adımdan önce silin.
 
@@ -75,8 +82,8 @@ curl -sS "https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/scri
 apt-cache madison gitlab-ce            # Debian/Ubuntu
 dnf repoquery gitlab-ce                # RHEL/Rocky
 
-# Çalıştır
-sudo ./gitlab-upgrade.sh |& tee "upgrade_log_$(date +%F_%H-%M-%S).log"
+# Çalıştır (log otomatik: /var/log/gitlab-upgrade/upgrade_<tarih>.log)
+sudo ./gitlab-upgrade.sh
 ```
 
 Ayarlar (ortam değişkeni):
@@ -87,8 +94,10 @@ Ayarlar (ortam değişkeni):
 | `READY_WAIT_MINUTES` | `15`                           | Adım sonrası uygulamanın hazır olması için bekleme üst sınırı    |
 | `READINESS_URL`      | `http://127.0.0.1/-/readiness` | Sağlık kapısının kontrol ettiği adres (https/farklı host için)   |
 | `DISK_MARGIN_MB`     | `2048`                         | PG data kopyası üstüne istenen boş alan payı (MB)                |
+| `SKIP_BACKUP`        | `0`                            | `1`: `gitlab-backup create` atlanır (snapshot'ınız varsa)        |
+| `LOG_DIR`            | `/var/log/gitlab-upgrade`      | Script'in log dosyasını yazdığı dizin                            |
 
-> Not: Ubuntu 24.04 (Noble) deposunda 15.x gibi eski majorlar bulunmayabilir. Script sadece depoda bulunan sürümlere gidebilir; ara major eksikse durur.
+> Not: Ubuntu 24.04 (Noble) deposunda 15.x gibi eski majorlar bulunmayabilir. Script sadece depoda bulunan sürümlere gidebilir; ara major veya required stop eksikse durur.
 
 ## 💡 Örnek Çıktı
 
