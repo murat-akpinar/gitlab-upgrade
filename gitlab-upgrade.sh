@@ -60,6 +60,9 @@ required_stops() {
     15) echo "0 1 4 11" ;;
     16) echo "0 1 2 3 7 11" ;;
     17) echo "1 3 5 8 11" ;;
+    # 18.3: resmi stop değil; 18.2.x'teki BackfillSentNotificationsAfterPartition hatasını 18.3.6+ düzeltir.
+    # https://support.gitlab.com/hc/en-us/articles/27692688410140
+    18) echo "2 3 5 8 11" ;;
     *)  echo "2 5 8 11" ;;   # 17.5+ politikası: x.2, x.5, x.8, x.11
   esac
 }
@@ -186,10 +189,16 @@ pending_background_migrations() {
 }
 
 # Docs: "All migrations must finish running before each upgrade."
+# $1 = mevcut sürüm
 wait_for_background_migrations() {
   local waited=0 pending
   while :; do
     pending="$(pending_background_migrations)" || { log "❌ batched_background_migrations sorgusu başarısız (PostgreSQL çalışıyor mu?)"; exit 1; }
+    # Bilinen 18.2.x hatası (partition eksik): retry ile geçmez, 18.3.6+ temizleyip yeniden planlar. GitLab: yok sayılabilir.
+    if [[ "$1" == 18.2.* ]] && grep -q '^BackfillSentNotificationsAfterPartition .*\[failed\]$' <<<"$pending"; then
+      log "⚠️  BackfillSentNotificationsAfterPartition [failed] bilinen 18.2 hatası; 18.3 düzeltecek, yok sayılıyor."
+      pending="$(grep -v '^BackfillSentNotificationsAfterPartition .*\[failed\]$' <<<"$pending" || true)"
+    fi
     [[ -z "$pending" ]] && break
     log "⏳ Bitmemiş batched background migration var (${waited} sn beklendi):"
     log "$pending"
@@ -383,7 +392,7 @@ main() {
       ensure_disk_space 0
     fi
     backup_if_needed_for_major "$current_version"
-    wait_for_background_migrations
+    wait_for_background_migrations "$current_version"
     upgrade_once "$next_version"
 
     current_version="$(get_current_version)"
